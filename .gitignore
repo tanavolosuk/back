@@ -1,0 +1,14 @@
+# Файлы окружения
+.env
+.env.local
+
+# Логи
+*.log
+logs/
+
+# Папка node_modules
+node_modules/
+
+# Файлы операционной системы
+.DS_Store
+Thumbs.db
