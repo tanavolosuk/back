@@ -1,8 +1,7 @@
 // models/User.js
-// Расширенная модель пользователя с медицинским профилем
-
 const { getDatabase } = require('../config/database');
 const bcrypt = require('bcryptjs');
+const { ObjectId } = require('mongodb'); // Добавляем импорт
 
 class User {
     // Метод для создания нового пользователя
@@ -60,7 +59,7 @@ class User {
         const result = await usersCollection.insertOne(user);
         
         return {
-            id: result.insertedId,
+            id: result.insertedId.toString(), // Преобразуем ObjectId в строку
             username: user.username,
             email: user.email,
             personalData: user.personalData,
@@ -81,17 +80,41 @@ class User {
         const db = getDatabase();
         const usersCollection = db.collection('users');
         
-        const user = await usersCollection.findOne(
-            { _id: userId },
-            { 
-                projection: { 
-                    password: 0, // Исключаем пароль
-                    'medicalProfile.notes': 0 // Исключаем заметки по умолчанию
-                } 
-            }
-        );
+        console.log('🔍 Поиск пользователя по ID:', userId);
         
-        return user;
+        try {
+            // Пробуем найти как по строке, так и по ObjectId
+            let user = await usersCollection.findOne(
+                { _id: new ObjectId(userId) },
+                { 
+                    projection: { 
+                        password: 0,
+                        'medicalProfile.notes': 0
+                    } 
+                }
+            );
+            
+            // Если не нашли по ObjectId, пробуем найти по строке (как в логине)
+            if (!user) {
+                console.log('🔄 Пробуем найти пользователя по строковому ID...');
+                user = await usersCollection.findOne(
+                    { _id: userId },
+                    { 
+                        projection: { 
+                            password: 0,
+                            'medicalProfile.notes': 0
+                        } 
+                    }
+                );
+            }
+            
+            console.log('✅ Результат поиска пользователя:', user ? 'найден' : 'не найден');
+            return user;
+            
+        } catch (error) {
+            console.error('❌ Ошибка при поиске пользователя:', error);
+            return null;
+        }
     }
     
     // Метод для проверки пароля
@@ -109,10 +132,26 @@ class User {
             'updatedAt': new Date()
         };
         
-        const result = await usersCollection.updateOne(
-            { _id: userId },
-            { $set: updateData }
-        );
+        let result;
+        try {
+            // Пробуем обновить по ObjectId
+            result = await usersCollection.updateOne(
+                { _id: new ObjectId(userId) },
+                { $set: updateData }
+            );
+            
+            // Если не нашли, пробуем по строке
+            if (result.matchedCount === 0) {
+                result = await usersCollection.updateOne(
+                    { _id: userId },
+                    { $set: updateData }
+                );
+            }
+            
+        } catch (error) {
+            console.error('❌ Ошибка при обновлении медицинского профиля:', error);
+            return false;
+        }
         
         return result.modifiedCount > 0;
     }
@@ -127,10 +166,26 @@ class User {
             'updatedAt': new Date()
         };
         
-        const result = await usersCollection.updateOne(
-            { _id: userId },
-            { $set: updateData }
-        );
+        let result;
+        try {
+            // Пробуем обновить по ObjectId
+            result = await usersCollection.updateOne(
+                { _id: new ObjectId(userId) },
+                { $set: updateData }
+            );
+            
+            // Если не нашли, пробуем по строке
+            if (result.matchedCount === 0) {
+                result = await usersCollection.updateOne(
+                    { _id: userId },
+                    { $set: updateData }
+                );
+            }
+            
+        } catch (error) {
+            console.error('❌ Ошибка при обновлении персональных данных:', error);
+            return false;
+        }
         
         return result.modifiedCount > 0;
     }
@@ -140,10 +195,23 @@ class User {
         const db = getDatabase();
         const usersCollection = db.collection('users');
         
-        await usersCollection.updateOne(
-            { _id: userId },
-            { $set: { lastLogin: new Date() } }
-        );
+        try {
+            // Пробуем обновить по ObjectId
+            let result = await usersCollection.updateOne(
+                { _id: new ObjectId(userId) },
+                { $set: { lastLogin: new Date() } }
+            );
+            
+            // Если не нашли, пробуем по строке
+            if (result.matchedCount === 0) {
+                await usersCollection.updateOne(
+                    { _id: userId },
+                    { $set: { lastLogin: new Date() } }
+                );
+            }
+        } catch (error) {
+            console.error('❌ Ошибка при обновлении lastLogin:', error);
+        }
     }
 }
 

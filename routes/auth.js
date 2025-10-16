@@ -1,35 +1,28 @@
 // routes/auth.js
-// Маршруты для аутентификации
+// Обновленные маршруты для аутентификации
 
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { authenticateToken } = require('../middleware/auth');
+const { validateRegistration } = require('../middleware/validation');
 
 const router = express.Router();
 
 // POST /api/auth/register - Регистрация нового пользователя
-router.post('/register', async (req, res) => {
+router.post('/register', validateRegistration, async (req, res) => {
     try {
-        const { username, password } = req.body;
-        
-        // Валидация входных данных
-        if (!username || !password) {
-            return res.status(400).json({
-                success: false,
-                message: 'Имя пользователя и пароль обязательны'
-            });
-        }
-        
-        if (password.length < 6) {
-            return res.status(400).json({
-                success: false,
-                message: 'Пароль должен быть не менее 6 символов'
-            });
-        }
+        const { username, password, email, fullName, birthDate, gender } = req.body;
         
         // Создаем пользователя
-        const user = await User.create({ username, password });
+        const user = await User.create({ 
+            username, 
+            password,
+            email,
+            fullName,
+            birthDate,
+            gender
+        });
         
         res.status(201).json({
             success: true,
@@ -38,6 +31,8 @@ router.post('/register', async (req, res) => {
                 user: {
                     id: user.id,
                     username: user.username,
+                    email: user.email,
+                    personalData: user.personalData,
                     createdAt: user.createdAt
                 }
             }
@@ -91,6 +86,9 @@ router.post('/login', async (req, res) => {
             });
         }
         
+        // Обновляем время последнего входа
+        await User.updateLastLogin(user._id);
+        
         // Создаем JWT токен
         const token = jwt.sign(
             { 
@@ -108,7 +106,9 @@ router.post('/login', async (req, res) => {
                 token: token,
                 user: {
                     id: user._id,
-                    username: user.username
+                    username: user.username,
+                    email: user.email,
+                    personalData: user.personalData
                 }
             }
         });

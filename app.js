@@ -8,7 +8,7 @@ require('dotenv').config();
 // Импортируем наши модули
 const { connectToDatabase } = require('./config/database');
 const authRoutes = require('./routes/auth');
-const profileRoutes = require('./routes/profile'); // НОВЫЙ импорт
+const profileRoutes = require('./routes/profile');
 
 // Создаем Express приложение
 const app = express();
@@ -26,7 +26,7 @@ app.use((req, res, next) => {
 
 // Подключаем маршруты
 app.use('/api/auth', authRoutes);
-app.use('/api/profile', profileRoutes); // НОВЫЙ маршрут
+app.use('/api/profile', profileRoutes);
 
 // Базовый маршрут для проверки работы сервера
 app.get('/', (req, res) => {
@@ -44,15 +44,15 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'OK',
         timestamp: new Date().toISOString(),
-        database: 'Connected' // Можно добавить проверку подключения к БД
+        database: 'Connected'
     });
 });
 
-// Обработка несуществующих маршрутов
-app.use('*', (req, res) => {
+// ИСПРАВЛЕННАЯ ОБРАБОТКА НЕСУЩЕСТВУЮЩИХ МАРШРУТОВ
+app.use((req, res, next) => {
     res.status(404).json({
         success: false,
-        message: 'Маршрут не найден'
+        message: `Маршрут не найден: ${req.method} ${req.path}`
     });
 });
 

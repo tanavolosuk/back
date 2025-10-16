@@ -2,6 +2,7 @@
 // Маршруты для управления профилем пользователя
 
 const express = require('express');
+const { ObjectId } = require('mongodb'); // Добавляем импорт ObjectId
 const User = require('../models/User');
 const MedicalProfile = require('../models/MedicalProfile');
 const { authenticateToken } = require('../middleware/auth');
@@ -12,14 +13,19 @@ const router = express.Router();
 // GET /api/profile/medical - Получить медицинский профиль
 router.get('/medical', authenticateToken, async (req, res) => {
     try {
+        console.log('🔄 Запрос медицинского профиля для пользователя:', req.user.id);
+        
         const user = await User.findById(req.user.id);
         
         if (!user) {
+            console.log('❌ Пользователь не найден по ID:', req.user.id);
             return res.status(404).json({
                 success: false,
                 message: 'Пользователь не найден'
             });
         }
+        
+        console.log('✅ Медицинский профиль найден для:', user.username);
         
         res.json({
             success: true,
@@ -42,6 +48,7 @@ router.get('/medical', authenticateToken, async (req, res) => {
 router.put('/medical', authenticateToken, validateMedicalProfile, async (req, res) => {
     try {
         const medicalData = req.body;
+        console.log('🔄 Обновление медицинского профиля для пользователя:', req.user.id);
         
         // Обновляем медицинский профиль
         const updated = await User.updateMedicalProfile(req.user.id, medicalData);
@@ -52,6 +59,8 @@ router.put('/medical', authenticateToken, validateMedicalProfile, async (req, re
                 message: 'Пользователь не найден'
             });
         }
+        
+        console.log('✅ Медицинский профиль обновлен для пользователя:', req.user.id);
         
         res.json({
             success: true,
@@ -74,6 +83,7 @@ router.put('/medical', authenticateToken, validateMedicalProfile, async (req, re
 router.put('/personal', authenticateToken, async (req, res) => {
     try {
         const personalData = req.body;
+        console.log('🔄 Обновление персональных данных для пользователя:', req.user.id);
         
         // Валидация даты рождения
         if (personalData.birthDate && !MedicalProfile.isValidBirthDate(personalData.birthDate)) {
@@ -92,6 +102,8 @@ router.put('/personal', authenticateToken, async (req, res) => {
                 message: 'Пользователь не найден'
             });
         }
+        
+        console.log('✅ Персональные данные обновлены для пользователя:', req.user.id);
         
         res.json({
             success: true,
@@ -116,17 +128,23 @@ router.get('/complete', authenticateToken, async (req, res) => {
         const db = require('../config/database').getDatabase();
         const usersCollection = db.collection('users');
         
+        console.log('🔄 Запрос полного профиля для пользователя:', req.user.id);
+        
+        // Используем ObjectId для поиска в MongoDB
         const user = await usersCollection.findOne(
-            { _id: req.user.id },
-            { projection: { password: 0 } } // Только пароль исключаем
+            { _id: new ObjectId(req.user.id) }, // Преобразуем строку в ObjectId
+            { projection: { password: 0 } } // Исключаем только пароль
         );
         
         if (!user) {
+            console.log('❌ Пользователь не найден в базе по ID:', req.user.id);
             return res.status(404).json({
                 success: false,
                 message: 'Пользователь не найден'
             });
         }
+        
+        console.log('✅ Полный профиль найден для:', user.username);
         
         res.json({
             success: true,
