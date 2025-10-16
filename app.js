@@ -1,5 +1,5 @@
 // app.js
-// Главный файл приложения - точка входа
+// Обновленный главный файл приложения
 
 const express = require('express');
 const cors = require('cors');
@@ -8,16 +8,17 @@ require('dotenv').config();
 // Импортируем наши модули
 const { connectToDatabase } = require('./config/database');
 const authRoutes = require('./routes/auth');
+const profileRoutes = require('./routes/profile'); // НОВЫЙ импорт
 
 // Создаем Express приложение
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors()); // Разрешаем CORS для всех доменов (в продакшене укажите конкретный домен)
-app.use(express.json()); // Парсинг JSON тел запросов
+app.use(cors());
+app.use(express.json());
 
-// Логирование запросов (простейшее)
+// Логирование запросов
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
@@ -25,13 +26,15 @@ app.use((req, res, next) => {
 
 // Подключаем маршруты
 app.use('/api/auth', authRoutes);
+app.use('/api/profile', profileRoutes); // НОВЫЙ маршрут
 
 // Базовый маршрут для проверки работы сервера
 app.get('/', (req, res) => {
     res.json({
         success: true,
-        message: 'Сервер аутентификации работает!',
-        timestamp: new Date().toISOString()
+        message: 'Сервер аутентификации и медицинского профиля работает!',
+        timestamp: new Date().toISOString(),
+        version: '1.1.0'
     });
 });
 
@@ -40,18 +43,16 @@ app.get('/health', (req, res) => {
     res.json({
         success: true,
         status: 'OK',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        database: 'Connected' // Можно добавить проверку подключения к БД
     });
 });
 
 // Обработка несуществующих маршрутов
-app.use((req, res) => {
-    console.log('❌ Маршрут не найден для:', req.method, req.originalUrl);
+app.use('*', (req, res) => {
     res.status(404).json({
         success: false,
-        message: 'Маршрут не найден',
-        attemptedPath: req.originalUrl,
-        method: req.method
+        message: 'Маршрут не найден'
     });
 });
 
@@ -67,13 +68,15 @@ app.use((error, req, res, next) => {
 // Функция запуска сервера
 async function startServer() {
     try {
+        // Сначала подключаемся к базе данных
         await connectToDatabase();
         
+        // Затем запускаем сервер
         app.listen(PORT, () => {
             console.log(`🚀 Сервер запущен на порту ${PORT}`);
-            console.log(`🔗 Базовый URL: http://localhost:${PORT}`);
-            console.log(`📝 Регистрация: POST http://localhost:${PORT}/api/auth/register`);
-            console.log(`🔑 Логин: POST http://localhost:${PORT}/api/auth/login`);
+            console.log(`📊 Режим: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`🔗 URL: http://localhost:${PORT}`);
+            console.log(`📝 Доступные API: /api/auth, /api/profile`);
         });
         
     } catch (error) {

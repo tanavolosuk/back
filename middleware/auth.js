@@ -1,63 +1,145 @@
-// middleware/auth.js
-// Middleware для проверки JWT токена
+// routes/auth.js
+// Обновленные маршруты для аутентификации
 
+const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { authenticateToken } = require('../middleware/auth');
+const { validateRegistration } = require('../middleware/validation');
 
-// Middleware для проверки аутентификации
-const authenticateToken = async (req, res, next) => {
+const router = express.Router();
+
+// POST /api/auth/register - Регистрация нового пользователя
+router.post('/register', validateRegistration, async (req, res) => {
     try {
-        // Получаем токен из заголовка Authorization
-        const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.split(' ')[1]; // Формат: "Bearer TOKEN"
+        const { username, password, email, fullName, birthDate, gender } = req.body;
         
-        if (!token) {
-            return res.status(401).json({ 
-                success: false,
-                message: 'Токен доступа не предоставлен' 
-            });
-        }
+        // Создаем пользователя
+        const user = await User.create({ 
+            username, 
+            password,
+            email,
+            fullName,
+            birthDate,
+            gender
+        });
         
-        // Проверяем токен
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
-        // Находим пользователя в базе данных
-        const user = await User.findById(decoded.userId);
-        if (!user) {
-            return res.status(403).json({ 
-                success: false,
-                message: 'Пользователь не найден' 
-            });
-        }
-        
-        // Добавляем информацию о пользователе в объект запроса
-        req.user = user;
-        next(); // Переходим к следующему middleware/обработчику
+        res.status(201).json({
+            success: true,
+            message: 'Пользователь успешно зарегистрирован',
+            data: {
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    email: user.email,
+                    personalData: user.personalData,
+                    createdAt: user.createdAt
+                }
+            }
+        });
         
     } catch (error) {
-        console.error('Ошибка аутентификации:', error);
+        console.error('Ошибка регистрации:', error);
         
-        if (error.name === 'JsonWebTokenError') {
-            return res.status(403).json({ 
+        if (error.message === 'Пользователь с таким именем уже существует') {
+            return res.status(409).json({
                 success: false,
-                message: 'Недействительный токен' 
+                message: error.message
             });
         }
         
-        if (error.name === 'TokenExpiredError') {
-            return res.status(403).json({ 
-                success: false,
-                message: 'Срок действия токена истек' 
-            });
-        }
-        
-        return res.status(500).json({ 
+        res.status(500).json({
             success: false,
-            message: 'Ошибка сервера при аутентификации' 
+            message: 'Ошибка сервера при регистрации'
         });
     }
-};
+});
 
-module.exports = {
-    authenticateToken
-};
+// POST /api/auth/login - Вход пользователя
+router.post('/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        
+        // Валидация входных данных
+        if (!username || !password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Имя пользователя и пароль обязательны'
+            });
+        }
+        
+        // Ищем пользователя
+        const user = await User.findByUsername(username);
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Неверное имя пользователя или пароль'
+            });
+        }
+        
+        // Проверяем пароль
+        const isPasswordValid = await User.checkPassword(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                success: false,
+                message: 'Неверное имя пользователя или пароль'
+            });
+        }
+        
+        // Обновляем время последнего входа
+        await User.updateLastLogin(user._id);
+        
+        // Создаем JWT токен
+        const token = jwt.sign(
+            { 
+                userId: user._id,
+                username: user.username 
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: process.env.JWT_EXPIRES_IN }
+        );
+        
+        res.json({
+            success: true,
+            message: 'Вход выполнен успешно',
+            data: {
+                token: token,
+                user: {
+                    id: user._id,
+                    username: user.username,
+                    email: user.email,
+                    personalData: user.personalData
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка входа:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка сервера при входе'
+        });
+    }
+});
+
+// GET /api/auth/me - Получить информацию о текущем пользователе
+router.get('/me', authenticateToken, async (req, res) => {
+    try {
+        // Пользователь уже добавлен в req объект middleware authenticateToken
+        res.json({
+            success: true,
+            data: {
+                user: req.user
+            }
+        });
+        
+    } catch (error) {
+        console.error('Ошибка получения профиля:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Ошибка сервера при получении профиля'
+        });
+    }
+});
+
+module.exports = router;
